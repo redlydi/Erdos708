@@ -1,0 +1,63 @@
+name: Clean up Lean experiments
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Remove Lean experiments
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git rm -r --ignore-unmatch \
+            Erdos708Formal \
+            formal \
+            legacy/Erdos708.lean \
+            Erdos708Formal.lean \
+            lakefile.lean \
+            lakefile.toml \
+            lake-manifest.json \
+            lean-toolchain \
+            README-LEAN.md \
+            README-ALL-THEOREMS.md
+
+          for file in \
+            lean.yml \
+            lean-all.yml \
+            unpack-lean.yml \
+            unpack-all.yml \
+            fix-imports.yml
+          do
+            git rm --ignore-unmatch \
+              ".github/workflows/$file"
+          done
+
+          echo "Files staged for deletion:"
+          git diff --cached --name-status
+
+      - name: Create cleanup pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/cleanup-lean-experiments
+          delete-branch: true
+          title: Remove experimental Lean setup
+          commit-message: Remove experimental Lean setup
+          body: |
+            Removes experimental Lean modules,
+            Lean build configuration, and related
+            GitHub Actions workflows.
+
+            Research reports, Python scripts,
+            computation outputs, and README.md
+            are preserved.
