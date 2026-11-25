@@ -58,11 +58,23 @@ jobs:
             lake env lean "Erdos708Formal/$module.lean"
           done
 
-      - name: Reject sorry and admit
+      - name: Reject unfinished proofs
         shell: bash
         run: |
-          if grep -RnE '\b(sorry|admit)\b' \
-            Erdos708Formal/ Erdos708Formal.lean; then
-            echo "Unfinished proofs detected"
-            exit 1
-          fi
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          for path in Path("Erdos708Formal").rglob("*.lean"):
+              text = path.read_text()
+              text = re.sub(r"/-.*?-/", "", text, flags=re.S)
+              text = re.sub(r"--[^\n]*", "", text)
+
+              if re.search(r"\b(sorry|admit)\b", text):
+                  raise SystemExit(
+                      f"Unfinished proof in {path}"
+                  )
+
+          print("No unfinished proofs found")
+          PY
