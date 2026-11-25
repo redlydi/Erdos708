@@ -123,7 +123,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          BRANCH="automation/organize-research"
+          BRANCH="automation/organize-research-v2"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
@@ -133,7 +133,7 @@ jobs:
             exit 0
           fi
           git commit -m "Organize research files and README"
-          git push --force-with-lease origin "$BRANCH"
+          git push -u origin "$BRANCH"
           gh pr create \
             --base main \
             --head "$BRANCH" \
