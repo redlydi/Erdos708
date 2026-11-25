@@ -1,8 +1,7 @@
-name: Lean 4 formal checks
+
+name: Lean 4 verification FIXED
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -17,13 +16,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Lean toolchain
-        uses: leanprover/lean-action@v1
-        with:
-          build: false
-          test: false
-          lint: false
-          use-github-cache: false
+      - name: Install Lean
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Check Lean installation
+        run: |
+          lean --version
+          lake --version
 
       - name: Generate Lake manifest
         run: lake update
@@ -31,13 +37,15 @@ jobs:
       - name: Download Mathlib cache
         run: lake exe cache get
 
-      - name: Compile Lean proofs
+      - name: Compile Lean project
         run: lake build
 
-      - name: Reject unfinished proofs
+      - name: Check unfinished proofs
+        shell: bash
         run: |
-          if grep -RnE '(^|[[:space:]])(sorry|admit)([[:space:]]|$)' \
+          if grep -RnE \
+            '(^|[[:space:]])(sorry|admit)([[:space:]]|$)' \
             Erdos708Formal.lean Erdos708Formal/; then
-            echo "Unfinished proofs found"
+            echo "Unfinished proofs detected"
             exit 1
           fi
