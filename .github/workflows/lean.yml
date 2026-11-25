@@ -1,4 +1,3 @@
-
 name: Lean 4 formal checks
 
 on:
@@ -12,22 +11,33 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Install Lean and verify proofs
+      - name: Install Lean toolchain
         uses: leanprover/lean-action@v1
         with:
-          build: true
+          build: false
           test: false
           lint: false
+          use-github-cache: false
+
+      - name: Generate Lake manifest
+        run: lake update
+
+      - name: Download Mathlib cache
+        run: lake exe cache get
+
+      - name: Compile Lean proofs
+        run: lake build
 
       - name: Reject unfinished proofs
         run: |
           if grep -RnE '(^|[[:space:]])(sorry|admit)([[:space:]]|$)' \
             Erdos708Formal.lean Erdos708Formal/; then
-            echo "Unfinished Lean proofs found"
+            echo "Unfinished proofs found"
             exit 1
           fi
