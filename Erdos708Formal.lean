@@ -1,3 +1,4 @@
+import Erdos708Formal.Support
 /-!
 # Formal foundation for Erdos–Surányi problem 708
 
