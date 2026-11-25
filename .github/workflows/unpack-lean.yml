@@ -1,0 +1,82 @@
+
+name: Unpack Lean project
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Lean project
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          archive = Path("Erdos708-Lean-Starter.zip")
+          if not archive.is_file():
+              raise SystemExit("ZIP not found in repository root")
+
+          allowed = {
+              ".github/workflows/lean.yml",
+              ".gitignore",
+              "Erdos708Formal/Support.lean",
+              "Erdos708Formal.lean",
+              "README-LEAN.md",
+              "formal/STATUS.md",
+              "lakefile.lean",
+              "lean-toolchain",
+              "legacy/Erdos708.lean",
+          }
+
+          with ZipFile(archive) as z:
+              names = set(z.namelist())
+              if names != allowed:
+                  raise SystemExit(
+                      f"Unexpected ZIP contents: {names ^ allowed}"
+                  )
+
+              for name in sorted(allowed):
+                  target = Path(name)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(z.read(name))
+                  print("Extracted:", name)
+
+          archive.unlink()
+          print("Lean project extracted successfully")
+          PY
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: automation/install-lean
+          delete-branch: true
+          commit-message: "Install Lean 4 formalization project"
+          title: "Install Lean 4 project"
+          body: |
+            Adds the Lean 4 project, Mathlib configuration,
+            formalization sources and verification workflow.
+
+            New mathematical results are not yet fully
+            Lean-verified.
+          add-paths: |
+            .github/workflows/lean.yml
+            .gitignore
+            Erdos708Formal/
+            Erdos708Formal.lean
+            README-LEAN.md
+            formal/
+            lakefile.lean
+            lean-toolchain
+            legacy/
+            Erdos708-Lean-Starter.zip
