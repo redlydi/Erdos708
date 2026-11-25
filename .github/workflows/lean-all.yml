@@ -1,0 +1,68 @@
+
+name: Verify all Erdos 708 Lean modules
+
+on:
+  push:
+    paths:
+      - 'Erdos708Formal/**'
+      - 'Erdos708Formal.lean'
+      - 'lakefile.lean'
+      - 'lean-toolchain'
+      - '.github/workflows/lean-all.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Lean
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize dependencies
+        run: lake update
+
+      - name: Download Mathlib cache
+        run: lake exe cache get
+
+      - name: Compile project
+        run: lake build
+
+      - name: Compile all eight modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          for module in \
+            BoundedCores \
+            CoprimeCores \
+            FourPrimes \
+            G2 \
+            G3 \
+            HallReserve \
+            Repetitions \
+            SupportWidths
+          do
+            echo "Checking $module"
+            lake env lean "Erdos708Formal/$module.lean"
+          done
+
+      - name: Reject sorry and admit
+        shell: bash
+        run: |
+          if grep -RnE '\b(sorry|admit)\b' \
+            Erdos708Formal/ Erdos708Formal.lean; then
+            echo "Unfinished proofs detected"
+            exit 1
+          fi
