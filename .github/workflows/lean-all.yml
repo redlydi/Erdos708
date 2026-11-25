@@ -1,14 +1,15 @@
-
 name: Verify all Erdos 708 Lean modules
 
 on:
   push:
     paths:
-      - 'Erdos708Formal/**'
-      - 'Erdos708Formal.lean'
-      - 'lakefile.lean'
+      - '**/*.lean'
       - 'lean-toolchain'
+      - 'lakefile.lean'
+      - 'lakefile.toml'
+      - 'lake-manifest.json'
       - '.github/workflows/lean-all.yml'
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -16,6 +17,7 @@ permissions:
 
 jobs:
   verify:
+    name: verify
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -24,57 +26,106 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Lean
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
-          sh elan-init.sh -y --default-toolchain none
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+        uses: leanprover/lean-action@v1
+        with:
+          build: false
+          test: false
+          lint: false
 
       - name: Initialize dependencies
-        run: lake update
-
-      - name: Download Mathlib cache
-        run: lake exe cache get
-
-      - name: Compile project
-        run: lake build
-
-      - name: Compile all eight modules
         shell: bash
         run: |
           set -euo pipefail
-          for module in \
-            BoundedCores \
-            CoprimeCores \
-            FourPrimes \
-            G2 \
-            G3 \
-            HallReserve \
-            Repetitions \
-            SupportWidths
-          do
-            echo "Checking $module"
-            lake env lean "Erdos708Formal/$module.lean"
-          done
+          lake update
+
+      - name: Download Mathlib cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake exe cache get
+
+      - name: Compile project
+        shell: bash
+        run: |
+          set -euo pipefail
+          lake build
+
+      - name: Compile all Lean modules
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          count=0
+
+          while IFS= read -r -d '' file; do
+            echo "================================"
+            echo "Checking: $file"
+            echo "================================"
+
+            lake env lean "$file"
+
+            count=$((count + 1))
+          done < <(
+            find Erdos708Formal \
+              -type f \
+              -name '*.lean' \
+              -print0 | sort -z
+          )
+
+          echo "Verified $count Lean modules"
 
       - name: Reject unfinished proofs
         shell: bash
         run: |
           set -euo pipefail
+
           python3 - <<'PY'
           from pathlib import Path
           import re
 
-          for path in Path("Erdos708Formal").rglob("*.lean"):
-              text = path.read_text()
-              text = re.sub(r"/-.*?-/", "", text, flags=re.S)
-              text = re.sub(r"--[^\n]*", "", text)
+          files = [
+              Path("Erdos708Formal.lean"),
+              *Path("Erdos708Formal").rglob("*.lean"),
+          ]
 
-              if re.search(r"\b(sorry|admit)\b", text):
+          for path in files:
+              if not path.exists():
+                  continue
+
+              text = path.read_text(
+                  encoding="utf-8"
+              )
+
+              text = re.sub(
+                  r"/-.*?-/",
+                  "",
+                  text,
+                  flags=re.S
+              )
+
+              text = re.sub(
+                  r"--[^\n]*",
+                  "",
+                  text
+              )
+
+              if re.search(
+                  r"\b(sorry|admit)\b",
+                  text
+              ):
                   raise SystemExit(
-                      f"Unfinished proof in {path}"
+                      f"Unfinished proof: {path}"
                   )
 
-          print("No unfinished proofs found")
+          print(
+              "No sorry or admit detected"
+          )
           PY
+
+      - name: Verification summary
+        if: success()
+        shell: bash
+        run: |
+          echo "Lean project compiled"
+          echo "All discovered modules checked"
+          echo "No unfinished proofs detected"
